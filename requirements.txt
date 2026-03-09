@@ -3,3 +3,4 @@ telethon
 nest_asyncio
 openpyxl
 pyinstaller
+Pillow
