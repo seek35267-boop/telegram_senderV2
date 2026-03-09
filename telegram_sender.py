@@ -13,7 +13,7 @@ from queue import Queue
 import logging
 import webbrowser
 from datetime import datetime
-from PIL import Image, ImageTk  # إضافة مكتبة PIL للتعامل مع الصور
+from PIL import Image, ImageTk
 
 # Apply nest_asyncio
 nest_asyncio.apply()
@@ -26,7 +26,7 @@ class TelegramSenderApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Telegram Bulk Message Sender")
-        self.root.geometry("1000x750")  # زيادة الارتفاع قليلاً
+        self.root.geometry("1000x750")
         
         self.colors = {
             'bg': '#ffffff',
@@ -102,7 +102,6 @@ class TelegramSenderApp:
                     self.login_button.config(state="normal")
                     self.login_in_progress = False
                 elif msg['type'] == 'close_dialog':
-                    # إغلاق أي نافذة حوار مفتوحة
                     pass
         except:
             pass
@@ -529,7 +528,7 @@ class TelegramSenderApp:
         self.phone_combo = ttk.Combobox(phone_row, textvariable=self.phone_column, state="readonly", width=25)
         self.phone_combo.pack(side=tk.LEFT)
         
-        # Image section - جديد
+        # Image section
         self.create_header(main, "Image Attachment (Optional)", "🖼️")
         image_frame = tk.Frame(main, bg=self.colors['bg'])
         image_frame.pack(fill=tk.X, pady=(0, 15))
@@ -791,7 +790,9 @@ class TelegramSenderApp:
             self.login_in_progress = False
     
     def preview_messages(self):
-        if not self.df or not self.name_column.get() or not self.phone_column.get():
+        # تصحيح التحقق من DataFrame
+        if self.df is None or len(self.df) == 0 or not self.name_column.get() or not self.phone_column.get():
+            messagebox.showwarning("Warning", "Please load Excel file and select columns first")
             return
         
         preview = tk.Toplevel(self.root)
@@ -822,11 +823,15 @@ class TelegramSenderApp:
         tk.Button(preview, text="Close", command=preview.destroy).pack(pady=5)
     
     def check_phone_numbers(self):
-        if not self.df or not self.phone_column.get():
+        # تصحيح التحقق من DataFrame
+        if self.df is None or len(self.df) == 0 or not self.phone_column.get():
+            messagebox.showwarning("Warning", "Please load Excel file and select phone column first")
             return
         
         valid = 0
         invalid = 0
+        
+        self.log("📱 Checking phone numbers:", 'info')
         
         for _, row in self.df.iterrows():
             phone = str(row[self.phone_column.get()])
@@ -843,8 +848,12 @@ class TelegramSenderApp:
     
     async def send_message(self, phone, message, name, idx, total):
         try:
-            clean = '+' + re.sub(r'\D', '', phone)
-            entity = await self.client.get_input_entity(clean)
+            # تنظيف رقم الهاتف وإضافة رمز البلد إذا لزم الأمر
+            clean_phone = re.sub(r'\D', '', phone)
+            if not clean_phone.startswith(self.country_code.get()):
+                clean_phone = self.country_code.get() + clean_phone
+            
+            entity = await self.client.get_input_entity(clean_phone)
             
             # إرسال الصورة إذا وجدت
             if self.image_path and os.path.exists(self.image_path):
@@ -861,7 +870,7 @@ class TelegramSenderApp:
             # محاولة مرة أخرى بعد الانتظار
             return await self.send_message(phone, message, name, idx, total)
         except Exception as e:
-            self.log(f"❌ ({idx}/{total}) Failed: {str(e)}", 'error')
+            self.log(f"❌ ({idx}/{total}) Failed for {name}: {str(e)}", 'error')
             return False
     
     async def send_all(self):
@@ -885,10 +894,10 @@ class TelegramSenderApp:
             self.message_queue.put({'type': 'progress', 'value': (idx+1) * 100 // total})
             
             # تأخير بين الرسائل لتجنب الحظر
-            await asyncio.sleep(3)  # زيادة التأخير قليلاً
+            await asyncio.sleep(3)
         
         self.log(f"📊 Complete: {success} sent, {failed} failed", 'info')
-        self.message_queue.put({'type': 'finished', 'text': f"Sent {success} messages"})
+        self.message_queue.put({'type': 'finished', 'text': f"Sent {success} messages, Failed: {failed}"})
         self.is_running = False
         
         # إعادة تمكين الأزرار
@@ -899,7 +908,7 @@ class TelegramSenderApp:
             messagebox.showwarning("Warning", "Connect to Telegram first")
             return
         
-        if self.df is None:
+        if self.df is None or len(self.df) == 0:
             messagebox.showwarning("Warning", "Load Excel file first")
             return
         
