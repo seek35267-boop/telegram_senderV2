@@ -1,0 +1,5 @@
+pandas
+telethon
+nest_asyncio
+openpyxl
+pyinstaller
